@@ -1,26 +1,223 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------------------
+   hire-me design tokens. Contract lives in DESIGN.md. Do not add colours.
+   --------------------------------------------------------------------------- */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Palette. Five tokens. There is no sixth. */
+  --bg: #c2c2c0;
+  --surface: #d8d8d6;
+  --ink: #0d0d0d;
+  --muted: #8c8c8a;
+  --accent: #111111;
+
+  /* Derived tonal step of --ink, not a sixth colour.
+     --muted measures 1.89:1 against --bg, so it cannot legally carry text at any
+     size. De-emphasis in the reading register uses this instead: 5.55:1 on --bg
+     and 6.93:1 on --surface, comfortably past the AA floor.
+     --muted keeps its substantial share of the visible area through hairlines,
+     unreached stage cells, the ambient grid field, and the stipple display face. */
+  --ink-soft: #434343;
+
+  /* Space. Everything resolves to the cell. */
+  --cell: 8px;
+  --s-1: 8px;
+  --s-2: 16px;
+  --s-3: 32px;
+  --s-5: 80px;
+  --s-8: 200px;
+
+  /* Surfaces */
+  --r-sm: 6px;
+  --r-md: 12px;
+  --r-pill: 999px;
+  --hairline: 1px solid color-mix(in srgb, var(--muted) 60%, transparent);
+  --lift: 4px 4px 0 var(--ink);
+  --lift-pressed: 2px 2px 0 var(--ink);
+
+  /* Motion */
+  --t-state: 0.15s;
+  --t-enter: 0.72s;
+  --t-pulse: 0.9s;
+  --e-state: ease;
+  --e-enter: ease-out;
+  --e-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Reading face */
+  --font-reading: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-pill: var(--r-pill);
+
+  --spacing-cell: var(--cell);
+  --spacing-s1: var(--s-1);
+  --spacing-s2: var(--s-2);
+  --spacing-s3: var(--s-3);
+  --spacing-s5: var(--s-5);
+  --spacing-s8: var(--s-8);
+
+  --font-reading: var(--font-reading);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ---------------------------------------------------------------------------
+   Base
+   --------------------------------------------------------------------------- */
+
+html {
+  background: var(--bg);
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-reading);
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* One weight throughout. Emphasis comes from size and register, never weight. */
+strong,
+b,
+th,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 400;
+}
+
+::selection {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+/* ---------------------------------------------------------------------------
+   Type scale. Fluid, one weight, dramatic range.
+
+   Declared in @layer components so plain Tailwind utilities still win. Without
+   the layer these are unlayered rules and outrank every utility, which makes
+   `t-micro text-ink` silently do nothing.
+   --------------------------------------------------------------------------- */
+
+@layer components {
+  .t-micro {
+    font-size: 0.6875rem;
+    letter-spacing: 0.18em;
+    line-height: 1.4;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+
+  .t-body {
+    font-size: 0.8125rem;
+    letter-spacing: 0.06em;
+    line-height: 1.75;
+  }
+
+  .t-body-lg {
+    font-size: 0.9375rem;
+    letter-spacing: 0.05em;
+    line-height: 1.8;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Focus. Same hairline plus hard offset vocabulary as the CTA. Never removed.
+   --------------------------------------------------------------------------- */
+
+:focus-visible {
+  outline: 1px solid var(--ink);
+  outline-offset: 3px;
+}
+
+/* ---------------------------------------------------------------------------
+   Motion primitives
+   --------------------------------------------------------------------------- */
+
+@keyframes hm-pulse {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.55;
+  }
+  50% {
+    transform: translateY(calc(var(--cell) * 0.75));
+    opacity: 1;
+  }
+}
+
+@keyframes hm-drift {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(calc(var(--cell) * -0.5));
+  }
+}
+
+.hm-pulse {
+  animation: hm-pulse var(--t-pulse) ease-in-out infinite;
+}
+
+.hm-drift {
+  animation: hm-drift 6s ease-in-out infinite;
+}
+
+/* Reveal. Entrances run 0.72s ease-out with a spring on transform. */
+.hm-reveal {
+  opacity: 0;
+  transform: translateY(calc(var(--cell) * 2.5));
+  transition:
+    opacity var(--t-enter) var(--e-enter),
+    transform var(--t-enter) var(--e-spring);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+.hm-reveal[data-revealed="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Reduced motion. Materially less, not a token tweak.
+   Parallax off, entrance transforms off, ambient loops off. Feedback kept.
+   --------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-enter: 0.2s;
+  }
+
+  .hm-pulse,
+  .hm-drift {
+    animation: none !important;
+  }
+
+  .hm-reveal {
+    transform: none !important;
+    transition:
+      opacity var(--t-enter) var(--e-enter) !important;
+  }
+
+  [data-parallax] {
+    transform: none !important;
+  }
 }
