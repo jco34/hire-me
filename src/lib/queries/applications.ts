@@ -203,6 +203,26 @@ export async function getApplication(id: string): Promise<ApplicationDetail | nu
 }
 
 /**
+ * Candidate applications for a duplicate check: this user's applications at a company
+ * matched by the same case-insensitive predicate `resolveCompanyId` uses. A company
+ * name with no match returns an empty array immediately — a brand-new company cannot
+ * already have a duplicate.
+ */
+export async function applicationsForCompanyName(
+  companyName: string,
+): Promise<{ id: string; title: string; companyName: string }[]> {
+  const userId = await currentUserId();
+
+  return db
+    .select({ id: applications.id, title: applications.title, companyName: companies.name })
+    .from(applications)
+    .innerJoin(companies, eq(applications.companyId, companies.id))
+    .where(
+      and(eq(applications.userId, userId), sql`lower(${companies.name}) = lower(${companyName})`),
+    );
+}
+
+/**
  * Values actually present in the user's data.
  *
  * Filter controls built from the full enums would offer options that match nothing,
