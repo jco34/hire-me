@@ -19,7 +19,7 @@ const base = cn(
   "rounded-pill border border-[color-mix(in_srgb,var(--muted)_70%,transparent)]",
   "bg-surface text-ink",
   "px-s3 py-s2 min-h-11",
-  "text-[0.8125rem] tracking-[0.14em] uppercase leading-none",
+  "text-[0.9375rem] tracking-[0.14em] uppercase leading-none",
   "shadow-[4px_4px_0_var(--ink)]",
   "transition-[background-color,color,box-shadow,transform] duration-150 ease-[ease]",
   "hover:bg-[color-mix(in_srgb,var(--surface)_60%,white)]",
@@ -62,7 +62,7 @@ export function FlatButton({
     <button
       className={cn(
         "inline-flex items-center gap-s1 min-h-11 px-s2",
-        "text-[0.75rem] tracking-[0.14em] uppercase leading-none",
+        "text-[0.8125rem] tracking-[0.14em] uppercase leading-none",
         "text-ink-soft hover:text-ink",
         "border-b border-transparent hover:border-ink",
         "transition-colors duration-150 ease-[ease]",

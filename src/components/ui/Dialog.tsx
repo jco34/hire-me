@@ -13,6 +13,7 @@ import {
 import { TileText } from "@/components/type/TileText";
 import { FlatButton } from "@/components/ui/Capsule";
 import { cn } from "@/lib/cn";
+import { layoutTileText } from "@/lib/tile-font";
 
 /**
  * Modal built on the native `<dialog>` element, so focus trapping, inertness of the rest
@@ -58,6 +59,37 @@ interface DialogProps {
   /** Label on the flat dismiss control. */
   closeLabel?: string;
   className?: string;
+}
+
+/**
+ * Dialog title in the tile face.
+ *
+ * A fixed-cell single-line SVG overflows any panel narrower than the title's natural
+ * width and scrolls the whole modal sideways; a single fluid line that fits-to-width
+ * instead collapses to an illegible few pixels on a phone. So the title wraps by word:
+ * each word is its own fluid tile at cell=4, laid out in a flex-wrap row, so a long
+ * title breaks onto a second line rather than shrinking away. `max-w-full` on each word
+ * is the last-resort cap for a single word wider than the line.
+ */
+function TileTitle({ id, text }: { id: string; text: string }) {
+  const words = text.split(/\s+/).filter(Boolean);
+  return (
+    <span
+      id={id}
+      className="flex min-w-0 flex-1 flex-wrap items-start gap-x-s2 gap-y-s1"
+    >
+      {words.map((word, i) => (
+        <span
+          key={`${i}-${word}`}
+          className="block min-w-0 max-w-full"
+          style={{ width: `calc(${layoutTileText(word).cols} * 4px)` }}
+        >
+          <TileText text={word} mode="solid" presentational />
+        </span>
+      ))}
+      <span className="sr-only">{text}</span>
+    </span>
+  );
 }
 
 export function Dialog({
@@ -166,9 +198,7 @@ export function Dialog({
         data-revealed="false"
       >
         <div className="flex items-start justify-between gap-s3">
-          <span id={titleId}>
-            <TileText text={title} mode="solid" cell={4} />
-          </span>
+          <TileTitle id={titleId} text={title} />
           <FlatButton
             type="button"
             onClick={() => ref.current?.close()}

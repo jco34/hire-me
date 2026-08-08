@@ -74,7 +74,7 @@ const VIEW_X = -1;
 const VIEW_W = (STAGE_SEQUENCE.length - 1) * PITCH + SQUARE + 2;
 
 /** `.t-micro` hard-codes --muted, so the ink variant is spelled out rather than layered. */
-const MICRO_INK = "text-[0.6875rem] leading-[1.4] tracking-[0.18em] uppercase text-ink";
+const MICRO_INK = "text-[0.75rem] leading-[1.4] tracking-[0.18em] uppercase text-ink";
 
 interface StageStripProps {
   stage: Stage;

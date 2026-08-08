@@ -29,38 +29,42 @@ export function AppShell({
     <div className="flex min-h-svh flex-col">
       <header
         className={cn(
-          "sticky top-0 z-30 flex items-center justify-between gap-s3",
+          "sticky top-0 z-30",
           "border-b border-[color-mix(in_srgb,var(--muted)_60%,transparent)]",
           "bg-bg px-s2 py-s2 sm:px-s3",
         )}
       >
-        <Link href="/" className="shrink-0" aria-label="hire me, home">
-          <TileText text="hire me" cell={3} presentational />
-        </Link>
+        <div className="mx-auto flex w-full max-w-[1400px] items-center justify-between gap-s3">
+          <Link href="/" className="shrink-0" aria-label="hire me, home">
+            <TileText text="hire me" cell={3} presentational />
+          </Link>
 
-        <nav className="flex items-center gap-s3">
-          {NAV.map((item) => {
-            const isActive = item.label === active;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={isActive ? "page" : undefined}
-                className={cn(
-                  "t-micro border-b py-s1 transition-colors duration-150 ease-[ease]",
-                  isActive
-                    ? "border-ink text-ink"
-                    : "border-transparent text-ink-soft hover:text-ink",
-                )}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
+          <nav className="flex items-center gap-s3">
+            {NAV.map((item) => {
+              const isActive = item.label === active;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={isActive ? "page" : undefined}
+                  className={cn(
+                    "t-micro border-b py-s1 transition-colors duration-150 ease-[ease]",
+                    isActive
+                      ? "border-ink text-ink"
+                      : "border-transparent text-ink-soft hover:text-ink",
+                  )}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
       </header>
 
-      <main className="flex-1 px-s2 py-s3 sm:px-s3">{children}</main>
+      <main className="flex-1 px-s2 py-s3 sm:px-s3">
+        <div className="mx-auto w-full max-w-[1400px]">{children}</div>
+      </main>
     </div>
   );
 }

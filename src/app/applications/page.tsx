@@ -1,14 +1,12 @@
 import Link from "next/link";
 
+import { ApplicationRow } from "@/app/applications/ApplicationRow";
 import { FilterBar } from "@/app/applications/FilterBar";
 import { AppShell } from "@/components/app/AppShell";
 import { CapsuleLink } from "@/components/ui/Capsule";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { EMPLOYMENT_TYPE_LABELS, WORK_SETUP_LABELS } from "@/components/ui/Meta";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { StageStrip } from "@/components/ui/StageStrip";
 import { cn } from "@/lib/cn";
-import { formatSalary } from "@/lib/domain/salary";
 import {
   applicationFilterFacets,
   listApplications,
@@ -175,7 +173,7 @@ function ApplicationsTable({
         </thead>
         <tbody>
           {rows.map((row) => (
-            <Row key={row.application.id} row={row} />
+            <ApplicationRow key={row.application.id} row={row} />
           ))}
         </tbody>
       </table>
@@ -224,62 +222,5 @@ function SortLink({
         {direction === "asc" ? "^" : "v"}
       </span>
     </Link>
-  );
-}
-
-function Row({ row }: { row: ApplicationListRow }) {
-  const { application, company, staleness } = row;
-
-  return (
-    <tr
-      className={cn(
-        "group border-b border-[color-mix(in_srgb,var(--muted)_40%,transparent)]",
-        "transition-colors duration-150 ease-[ease] hover:bg-surface",
-        // Urgency is contrast, not hue: a quiet row gets a hard left rule.
-        staleness.stale && "border-l-2 border-l-ink",
-      )}
-    >
-      <td className="px-s1 py-s2 align-top">
-        <Link
-          href={`/applications/${application.id}`}
-          className="t-body text-ink underline-offset-4 hover:underline"
-        >
-          {company.name}
-        </Link>
-      </td>
-      <td className="t-body px-s1 py-s2 align-top text-ink">{application.title}</td>
-      <td className="px-s1 py-s2 align-top">
-        <StageStrip stage={application.stage} outcome={application.outcome} size="sm" />
-      </td>
-      <td className="t-body px-s1 py-s2 align-top whitespace-nowrap text-ink">
-        {formatSalary(application)}
-      </td>
-      <td className="t-body hidden px-s1 py-s2 align-top whitespace-nowrap text-ink-soft lg:table-cell">
-        {[
-          application.workSetup ? WORK_SETUP_LABELS[application.workSetup] : null,
-          application.employmentType
-            ? EMPLOYMENT_TYPE_LABELS[application.employmentType]
-            : null,
-        ]
-          .filter(Boolean)
-          .join(" / ") || "not stated"}
-      </td>
-      <td className="t-body hidden px-s1 py-s2 align-top text-ink-soft xl:table-cell">
-        {application.location ?? "not stated"}
-      </td>
-      <td className="px-s1 py-s2 text-right align-top">
-        <span
-          className={cn(
-            "t-body whitespace-nowrap",
-            staleness.stale ? "text-ink" : "text-ink-soft",
-          )}
-        >
-          {staleness.days}d
-        </span>
-        {staleness.followUpDue ? (
-          <span className="t-micro block text-ink">follow up due</span>
-        ) : null}
-      </td>
-    </tr>
   );
 }

@@ -20,9 +20,10 @@ interface PageHeaderProps {
   /** Display register. Lowercase; the tile renderer draws lowercase glyphs only. */
   title: string;
   /**
-   * Sub-display register, drawn in stipple. Per DESIGN.md section 10 this face is only
-   * legible enough for text whose meaning is available elsewhere in the reading face,
-   * so keep it to route context rather than anything decision-bearing.
+   * Sub-display register, tile renderer. Solid mode in --ink rather than the stipple
+   * face: this is route context (record counts, breadcrumbs) that appears nowhere else
+   * on screen, and stipple at --muted measured 1.89:1, which is invisible and fails
+   * section 10. Solid --ink keeps the tile font but reads at 10.89:1.
    */
   kicker?: string;
   /** Action slot. At most one Capsule; anything further is a FlatButton. */
@@ -51,7 +52,7 @@ export function PageHeader({
       )}
     >
       <div className="flex min-w-0 flex-col gap-s1">
-        {kicker && <TileText text={kicker} mode="stipple" cell={3} />}
+        {kicker && <TileText text={kicker} mode="solid" cell={4} />}
         <h1>
           <TileText text={title} mode="solid" cell={cell} />
         </h1>

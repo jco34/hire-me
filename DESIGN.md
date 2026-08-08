@@ -48,6 +48,12 @@ salary figures would not be a bold trade, it would be a defect. So the system sp
 | **Sub-display** | Hero subhead, kicker labels, scroll cue, marginal captions | Tile renderer, stipple mode |
 | **Reading** | Table cells, form fields, notes, timeline entries, anything you must actually read | Real monospace, wide tracking, generous leading |
 
+**Exception:** the app shell's `PageHeader` kicker (record counts, route breadcrumbs, e.g.
+"12 applications") is drawn by the tile renderer in **solid** mode at `--ink`, not stipple.
+Nothing else on screen restates that count, so section 10's stipple-exception clause does not
+cover it — stipple at `--muted` measured 1.89:1 and was functionally invisible. Solid `--ink`
+keeps the tile face (same generative grid as the title) while reading at 10.89:1.
+
 The reading face inherits the *character* of the brief's body type (monospaced feeling, wide
 even tracking, generous leading, mixed case, low contrast against the grey) without inheriting
 its stipple rendering. The brief's legibility cost is paid in the hero, where it buys

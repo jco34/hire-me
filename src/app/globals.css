@@ -118,7 +118,7 @@ h6 {
 
 @layer components {
   .t-micro {
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     letter-spacing: 0.18em;
     line-height: 1.4;
     text-transform: uppercase;
@@ -126,13 +126,13 @@ h6 {
   }
 
   .t-body {
-    font-size: 0.8125rem;
+    font-size: 0.9375rem;
     letter-spacing: 0.06em;
     line-height: 1.75;
   }
 
   .t-body-lg {
-    font-size: 0.9375rem;
+    font-size: 1.0625rem;
     letter-spacing: 0.05em;
     line-height: 1.8;
   }
