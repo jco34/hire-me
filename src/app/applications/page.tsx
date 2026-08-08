@@ -96,7 +96,7 @@ export default async function ApplicationsPage({
             body={
               hasAnyFilter(filters)
                 ? "No application matches these filters. Clear them to see everything you have recorded."
-                : "Add the first application by hand. Pasting a listing to fill these fields in comes in phase 2."
+                : "Add your first application — paste a listing or a screenshot to fill it in, or type it by hand."
             }
             action={<CapsuleLink href="/applications/new">add an application</CapsuleLink>}
           />
