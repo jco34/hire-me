@@ -89,14 +89,15 @@ export function ApplicationForm({
     // Read the form's current values (not just the freshly extracted ones), so a
     // company/title the user already typed by hand before pasting still gets checked.
     const submitted = new FormData(form);
-    const hasCompanyAndTitle =
+    const hasCompanyAndTitle = Boolean(
       submitted.get("companyName")?.toString().trim() &&
-      submitted.get("title")?.toString().trim();
+        submitted.get("title")?.toString().trim(),
+    );
     if (!hasCompanyAndTitle) return;
 
     startDuplicateCheck(async () => {
-      const result = await checkForDuplicate(submitted);
-      if (result.ok && result.data) setDuplicate(result.data);
+      const result = await checkForDuplicate(submitted).catch(() => null);
+      if (result?.ok && result.data) setDuplicate(result.data);
     });
   };
 

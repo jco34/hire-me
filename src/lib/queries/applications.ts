@@ -18,6 +18,7 @@ import {
   type Stage,
   type WorkSetup,
 } from "@/lib/db/schema";
+import type { DuplicateCandidate } from "@/lib/domain/duplicate";
 import { staleness, type Staleness } from "@/lib/domain/stale";
 import {
   applicationFiltersSchema,
@@ -210,7 +211,7 @@ export async function getApplication(id: string): Promise<ApplicationDetail | nu
  */
 export async function applicationsForCompanyName(
   companyName: string,
-): Promise<{ id: string; title: string; companyName: string }[]> {
+): Promise<DuplicateCandidate[]> {
   const userId = await currentUserId();
 
   return db
@@ -218,7 +219,11 @@ export async function applicationsForCompanyName(
     .from(applications)
     .innerJoin(companies, eq(applications.companyId, companies.id))
     .where(
-      and(eq(applications.userId, userId), sql`lower(${companies.name}) = lower(${companyName})`),
+      and(
+        eq(applications.userId, userId),
+        eq(companies.userId, userId),
+        sql`lower(${companies.name}) = lower(${companyName})`,
+      ),
     );
 }
 

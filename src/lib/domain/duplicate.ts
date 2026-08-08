@@ -10,7 +10,7 @@
  */
 
 /** A score at or above this counts as a likely duplicate. Tune here; nothing else changes. */
-export const DUPLICATE_TITLE_THRESHOLD = 0.6;
+export const DUPLICATE_TITLE_THRESHOLD = 0.75;
 
 export type DuplicateCandidate = { id: string; title: string; companyName: string };
 export type DuplicateMatch = DuplicateCandidate & { score: number };
@@ -62,6 +62,8 @@ export function findLikelyDuplicate(
   title: string,
   candidates: DuplicateCandidate[],
 ): DuplicateMatch | null {
+  if (title.trim() === "") return null;
+
   let best: DuplicateMatch | null = null;
 
   for (const candidate of candidates) {
