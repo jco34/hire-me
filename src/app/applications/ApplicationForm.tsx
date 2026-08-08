@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useRef } from "react";
 
+import { IngestPanel } from "@/app/applications/IngestPanel";
 import {
   captureValues,
   restoreValues,
@@ -61,12 +62,15 @@ export function ApplicationForm({
   companyName,
   submitLabel,
   cancelHref,
+  ingest,
 }: {
   action: Action;
   application?: Application;
   companyName?: string;
   submitLabel: string;
   cancelHref: string;
+  /** Show the paste-to-fill panel above the form. Only the create route sets this. */
+  ingest?: boolean;
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -102,6 +106,14 @@ export function ApplicationForm({
       action={formAction}
       className="mt-s3 flex max-w-[900px] flex-col gap-s3"
     >
+      {ingest ? (
+        // Its own region, held apart from the form's save capsule by section spacing so
+        // the "one lifted capsule per region" rule holds (DESIGN.md 7).
+        <div className="mb-s5">
+          <IngestPanel onExtracted={(values) => restoreValues(formRef.current, values)} />
+        </div>
+      ) : null}
+
       {application ? <input type="hidden" name="id" value={application.id} /> : null}
 
       {errors[FORM_ERROR_KEY] ? (

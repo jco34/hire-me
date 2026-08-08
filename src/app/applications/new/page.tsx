@@ -6,11 +6,12 @@ import { createApplication } from "@/lib/actions/applications";
 export default function NewApplicationPage() {
   return (
     <AppShell active="applications">
-      <PageHeader title="add" kicker="a new application" />
+      <PageHeader title="add" kicker="paste a listing or fill it in" />
       <ApplicationForm
         action={createApplication}
         submitLabel="save application"
         cancelHref="/applications"
+        ingest
       />
     </AppShell>
   );
