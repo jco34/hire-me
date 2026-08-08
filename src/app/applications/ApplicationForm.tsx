@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 
 import { IngestPanel } from "@/app/applications/IngestPanel";
+import { checkForDuplicate } from "@/lib/actions/duplicates";
+import type { DuplicateMatch } from "@/lib/domain/duplicate";
 import {
   captureValues,
   restoreValues,
@@ -75,6 +77,29 @@ export function ApplicationForm({
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
 
+  const [duplicate, setDuplicate] = useState<DuplicateMatch | null>(null);
+  const [, startDuplicateCheck] = useTransition();
+
+  const handleExtracted = (values: FormValues) => {
+    const form = formRef.current;
+    restoreValues(form, values);
+    setDuplicate(null);
+    if (!form) return;
+
+    // Read the form's current values (not just the freshly extracted ones), so a
+    // company/title the user already typed by hand before pasting still gets checked.
+    const submitted = new FormData(form);
+    const hasCompanyAndTitle =
+      submitted.get("companyName")?.toString().trim() &&
+      submitted.get("title")?.toString().trim();
+    if (!hasCompanyAndTitle) return;
+
+    startDuplicateCheck(async () => {
+      const result = await checkForDuplicate(submitted);
+      if (result.ok && result.data) setDuplicate(result.data);
+    });
+  };
+
   const [state, formAction, pending] = useActionState(
     async (
       prev: { result: ActionResult<{ id: string }>; values: FormValues } | null,
@@ -110,8 +135,23 @@ export function ApplicationForm({
         // Its own region, held apart from the form's save capsule by section spacing so
         // the "one lifted capsule per region" rule holds (DESIGN.md 7).
         <div className="mb-s5">
-          <IngestPanel onExtracted={(values) => restoreValues(formRef.current, values)} />
+          <IngestPanel onExtracted={handleExtracted} />
         </div>
+      ) : null}
+
+      {duplicate ? (
+        <p className="t-body border-l-2 border-ink pl-s2 text-ink" role="status">
+          Looks like you may have already added this one —{" "}
+          <a
+            href={`/applications/${duplicate.id}`}
+            target="_blank"
+            rel="noreferrer"
+            className="underline"
+          >
+            {duplicate.title} at {duplicate.companyName}
+          </a>
+          .
+        </p>
       ) : null}
 
       {application ? <input type="hidden" name="id" value={application.id} /> : null}
