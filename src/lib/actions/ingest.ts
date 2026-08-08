@@ -20,7 +20,10 @@ import { actionError, parseWith, type ActionResult } from "@/lib/validation";
  * listing can at worst put junk in visible, editable fields.
  */
 
-const MODEL = "gemini-2.5-flash";
+// `gemini-flash-latest` is the multimodal Flash alias that stays available on the free
+// tier and tracks the current model. Pinned ids like `gemini-2.5-flash` return 404 "no
+// longer available to new users" for freshly created keys.
+const MODEL = "gemini-flash-latest";
 const MAX_IMAGES = 6;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
