@@ -1,65 +1,40 @@
 "use server";
 
-import { GoogleGenAI, Type, type Part } from "@google/genai";
-
-import type { FormValues } from "@/components/app/preserveValues";
 import {
   INGEST_PROMPT,
+  TRANSCRIBE_PROMPT,
+  buildMatchPrompt,
   extractionToFormValues,
   ingestExtractionSchema,
+  type IngestResult,
 } from "@/lib/domain/ingest";
+import { scoreMatch } from "@/lib/domain/match";
+import { runExtraction } from "@/lib/ingest/run";
+import { extractionShape } from "@/lib/ingest/shapes";
+import type { ExtractionFile } from "@/lib/ingest/types";
+import { activeResume } from "@/lib/queries/resumes";
 import { actionError, parseWith, type ActionResult } from "@/lib/validation";
 
 /**
  * Turn a pasted job listing (text and/or screenshots) into form-fill values.
  *
- * This is the only place the Gemini key is touched, and it never returns anything but a
- * plain string map, so nothing about the model or the key crosses to the client. The
- * output is schema-constrained by `responseSchema` and re-validated by zod before it is
- * handed back, and the user reviews every field before saving — so an adversarial
- * listing can at worst put junk in visible, editable fields.
+ * This file owns the parts that do not depend on which model reads the listing: what a
+ * caller is allowed to send, which prompt gets built, which extractor is tried, and the
+ * single schema gate every result passes through. The two transports live in
+ * `lib/ingest/` and neither of them is visible from here beyond the `Extractor` shape.
+ *
+ * Nothing about a model, a key or a subprocess crosses back to the client — the return is
+ * a plain string map either way. The output is schema-constrained by both transports and
+ * re-validated by zod before it is handed back, and the user reviews every field before
+ * saving, so an adversarial listing can at worst put junk in visible, editable fields.
  */
 
-// `gemini-flash-latest` is the multimodal Flash alias that stays available on the free
-// tier and tracks the current model. Pinned ids like `gemini-2.5-flash` return 404 "no
-// longer available to new users" for freshly created keys.
-const MODEL = "gemini-flash-latest";
 const MAX_IMAGES = 6;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
-/**
- * Response schema mirrors `ingestExtractionSchema`. Every field nullable so the model
- * can decline any it cannot find. No `as const`: the SDK's `Schema` type wants a plain
- * (non-readonly) object.
- */
-const RESPONSE_SCHEMA = {
-  type: Type.OBJECT,
-  properties: {
-    companyName: { type: Type.STRING, nullable: true },
-    title: { type: Type.STRING, nullable: true },
-    description: { type: Type.STRING, nullable: true },
-    url: { type: Type.STRING, nullable: true },
-    source: { type: Type.STRING, nullable: true },
-    employmentType: { type: Type.STRING, nullable: true },
-    workSetup: { type: Type.STRING, nullable: true },
-    location: { type: Type.STRING, nullable: true },
-    salaryMin: { type: Type.NUMBER, nullable: true },
-    salaryMax: { type: Type.NUMBER, nullable: true },
-    salaryCurrency: { type: Type.STRING, nullable: true },
-    salaryPeriod: { type: Type.STRING, nullable: true },
-    salaryRaw: { type: Type.STRING, nullable: true },
-    salaryNotDisclosed: { type: Type.BOOLEAN, nullable: true },
-  },
-};
-
 export async function extractApplicationFields(
   formData: FormData,
-): Promise<ActionResult<FormValues>> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return actionError("Add a GEMINI_API_KEY to .env.local to use paste-to-fill.");
-  }
-
+): Promise<ActionResult<IngestResult>> {
   const text = (formData.get("text") ?? "").toString().trim();
   const files = formData
     .getAll("images")
@@ -77,41 +52,67 @@ export async function extractApplicationFields(
     }
   }
 
-  const parts: Part[] = [{ text: INGEST_PROMPT }];
-  if (text !== "") parts.push({ text: `Listing text:\n${text}` });
-  for (const file of files) {
-    const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
-    parts.push({ inlineData: { data: base64, mimeType: file.type || "image/png" } });
-  }
-
-  let rawText: string;
+  // A missing resume is not an error. Scoring is an addition to paste-to-fill, not a
+  // precondition for it, so an empty `resumes` table quietly falls back to filling fields
+  // exactly as this action did before the feature existed.
+  let resumeText: string | null = null;
+  let resumeId: string | null = null;
   try {
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: MODEL,
-      contents: parts,
-      config: { responseMimeType: "application/json", responseSchema: RESPONSE_SCHEMA },
-    });
-    rawText = response.text ?? "";
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "";
-    if (/429|quota|rate/i.test(message)) {
-      return actionError("Hit the free-tier limit. Wait a moment and try again.");
+    const resume = await activeResume();
+    if (resume) {
+      resumeText = resume.rawText;
+      resumeId = resume.id;
     }
-    return actionError("Could not reach the extractor. Fill the form in by hand.");
+  } catch (error) {
+    console.error(`[ingest] could not read the active resume: ${String(error)}`);
   }
 
-  let parsedJson: unknown;
-  try {
-    parsedJson = JSON.parse(rawText);
-  } catch {
-    return actionError("Could not read that listing. Fill the form in by hand.");
+  const prompt = [
+    INGEST_PROMPT,
+    text === "" && files.length > 0 ? TRANSCRIBE_PROMPT : "",
+    resumeText ? buildMatchPrompt(resumeText) : "",
+  ].join("");
+
+  const attachments: ExtractionFile[] = [];
+  for (const file of files) {
+    attachments.push({
+      bytes: Buffer.from(await file.arrayBuffer()),
+      mimeType: file.type || "image/png",
+    });
   }
 
-  const validated = parseWith(ingestExtractionSchema, parsedJson);
+  const run = await runExtraction({
+    prompt,
+    text,
+    files: attachments,
+    shape: extractionShape(resumeText !== null),
+    subject: "that listing",
+    advice: "Fill the form in by hand.",
+  });
+  if (!run.ok) return actionError(run.message);
+
+  const validated = parseWith(ingestExtractionSchema, run.data);
   if (!validated.ok) {
     return actionError("Could not read that listing. Fill the form in by hand.");
   }
 
-  return { ok: true, data: extractionToFormValues(validated.data) };
+  const result = validated.data;
+
+  // Prefer what the user actually pasted over anything the model produced. A transcription
+  // is only ever a fallback for a screenshot-only paste, and it is the one field where the
+  // model could quietly rewrite the source of truth the score is computed from.
+  const listingText = text !== "" ? text : (result.listingText?.trim() || null);
+
+  const match = result.judgement ? scoreMatch(result.judgement) : null;
+
+  return {
+    ok: true,
+    data: {
+      values: extractionToFormValues(result),
+      match,
+      listingText,
+      resumeId: match ? resumeId : null,
+      extractor: run.extractor,
+    },
+  };
 }

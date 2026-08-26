@@ -3,6 +3,7 @@ import {
   boolean,
   index,
   integer,
+  jsonb,
   numeric,
   pgEnum,
   pgTable,
@@ -11,6 +12,8 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+
+import type { MatchBreakdown } from "@/lib/domain/match";
 
 /* ---------------------------------------------------------------------------
  * Enums
@@ -102,6 +105,41 @@ export const users = pgTable("users", {
 });
 
 /* ---------------------------------------------------------------------------
+ * resumes
+ *
+ * What every application is scored against. Versioned rather than a column on `users`
+ * because a score is only meaningful next to the resume that produced it: rewrite your
+ * resume and last month's 82 is a claim about a document that no longer exists.
+ * `matchResumeId` on an application points back here so the UI can say which one answered.
+ * ------------------------------------------------------------------------- */
+
+export const resumes = pgTable(
+  "resumes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Yours to recognise it by: "aug 2026, backend-leaning". */
+    label: text("label").notNull(),
+    /** The whole resume as plain text. This is what the model actually reads. */
+    rawText: text("raw_text").notNull(),
+    /** Exactly one active resume per user, enforced by a partial unique index below. */
+    isActive: boolean("is_active").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("resumes_user_idx").on(t.userId),
+    // Partial: only the active row participates, so any number of inactive versions can
+    // sit alongside it. Without the predicate this would allow exactly one resume, total.
+    uniqueIndex("resumes_active_key")
+      .on(t.userId)
+      .where(sql`${t.isActive}`),
+  ],
+);
+
+/* ---------------------------------------------------------------------------
  * companies
  * ------------------------------------------------------------------------- */
 
@@ -167,6 +205,25 @@ export const applications = pgTable(
     salaryRaw: text("salary_raw"),
     salaryNotDisclosed: boolean("salary_not_disclosed").notNull().default(false),
 
+    /* Match score.
+
+       `listingText` is the posting as it was pasted, and it is what makes the rest of
+       this block possible at all: paste-to-fill only ever kept a two-sentence summary,
+       and you cannot score a resume against a summary. It is also the only way to
+       re-score later, when the resume changes. Null on every row saved before this
+       existed, which is exactly why every column here is nullable — those read as
+       "not scored" rather than as a zero. */
+    listingText: text("listing_text"),
+    /** 0-100. Null means never scored, which is not the same as scoring zero. */
+    matchScore: integer("match_score"),
+    /** Dimensions, per-requirement coverage and evidence. Shape: `MatchBreakdown`. */
+    matchBreakdown: jsonb("match_breakdown").$type<MatchBreakdown>(),
+    /** Which resume produced the score, so the UI can flag it stale after a rewrite. */
+    matchResumeId: uuid("match_resume_id").references(() => resumes.id, {
+      onDelete: "set null",
+    }),
+    matchScoredAt: timestamp("match_scored_at", { withTimezone: true }),
+
     stage: stageEnum("stage").notNull().default("saved"),
     outcome: outcomeEnum("outcome").notNull().default("active"),
 
@@ -190,6 +247,9 @@ export const applications = pgTable(
     index("applications_stale_idx").on(t.userId, t.lastActivityAt),
     index("applications_stage_idx").on(t.userId, t.stage, t.outcome),
     index("applications_follow_up_idx").on(t.userId, t.followUpAt),
+    // Sorting the list by fit is the point of the feature, so it gets an index rather
+    // than a sequential scan that grows with every application you ever saved.
+    index("applications_match_idx").on(t.userId, t.matchScore),
   ],
 );
 
@@ -302,6 +362,11 @@ export const contacts = pgTable(
 export const usersRelations = relations(users, ({ many }) => ({
   companies: many(companies),
   applications: many(applications),
+  resumes: many(resumes),
+}));
+
+export const resumesRelations = relations(resumes, ({ one }) => ({
+  user: one(users, { fields: [resumes.userId], references: [users.id] }),
 }));
 
 export const companiesRelations = relations(companies, ({ one, many }) => ({
@@ -355,6 +420,8 @@ export type NewApplicationEvent = typeof applicationEvents.$inferInsert;
 export type ApplicationNote = typeof applicationNotes.$inferSelect;
 export type Contact = typeof contacts.$inferSelect;
 export type NewContact = typeof contacts.$inferInsert;
+export type Resume = typeof resumes.$inferSelect;
+export type NewResume = typeof resumes.$inferInsert;
 
 export type Stage = (typeof stageEnum.enumValues)[number];
 export type Outcome = (typeof outcomeEnum.enumValues)[number];

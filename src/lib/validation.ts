@@ -7,6 +7,7 @@ import {
   stageEnum,
   workSetupEnum,
 } from "@/lib/db/schema";
+import { matchBreakdownSchema } from "@/lib/domain/match";
 
 /**
  * Every mutation input is parsed here before it reaches the database.
@@ -311,9 +312,47 @@ function checkSalaryCoherence(value: SalaryInput, ctx: z.RefinementCtx): void {
   }
 }
 
+/* ---------------------------------------------------------------------------
+ * Match score
+ *
+ * These ride on create only, never on the shared core fields. The edit form does not
+ * render them, so putting them in `applicationCoreFields` would make every ordinary edit
+ * — fixing a typo in a job title — silently null the score and the stored listing.
+ * ------------------------------------------------------------------------- */
+
+/** A full posting is much longer than a description, so it gets its own ceiling. */
+const MAX_LISTING_TEXT = 40_000;
+
+/**
+ * The breakdown arrives as a JSON string in a hidden input, because that is the only way
+ * for a value computed during extraction to survive until the user presses save.
+ *
+ * There is no separate score field: the number is read back off the breakdown, so the two
+ * cannot disagree. Unparseable JSON becomes null rather than an error — the score is a
+ * convenience, and refusing to save an application over it would be the wrong trade.
+ */
+const optionalBreakdown = z.preprocess((value) => {
+  const base = blankToNull(value);
+  if (typeof base !== "string") return base;
+  try {
+    return JSON.parse(base);
+  } catch {
+    return null;
+  }
+}, matchBreakdownSchema.nullable().catch(null));
+
+const matchFields = {
+  listingText: optionalText(MAX_LISTING_TEXT),
+  matchBreakdown: optionalBreakdown,
+  matchResumeId: z.preprocess(blankToNull, uuid.nullable().catch(null)),
+};
+
 export const applicationCreateSchema = z
-  .object(applicationCoreFields)
+  .object({ ...applicationCoreFields, ...matchFields })
   .superRefine(checkSalaryCoherence);
+
+/** Re-score an existing application against the current resume. */
+export const rescoreSchema = z.object({ id: uuid });
 
 /**
  * Update carries stage and outcome so a single edit form can change everything, but the
@@ -360,6 +399,7 @@ export const APPLICATION_SORT_KEYS = [
   "title",
   "stage",
   "salary",
+  "match",
   "lastActivityAt",
   "appliedAt",
   "createdAt",
@@ -375,9 +415,49 @@ export const applicationFiltersSchema = z.object({
   workSetup: multiEnum(workSetupSchema).default([]),
   search: z.preprocess(blankToNull, z.string().max(MAX_NAME).nullable()).default(null),
   staleOnly: checkbox.default(false),
+  /**
+   * Floor for the match score. Unscored applications are excluded whenever this is set,
+   * because "show me everything above 70" cannot honestly include rows with no number.
+   */
+  minMatch: z
+    .preprocess((value) => {
+      const base = blankToNull(value);
+      if (base === null) return null;
+      const parsed = Number(base);
+      return Number.isFinite(parsed) ? parsed : null;
+    }, z.number().int().min(0).max(100).nullable().catch(null))
+    .default(null),
   sort: applicationSortSchema.default("lastActivityAt"),
   direction: sortDirectionSchema.default("desc"),
 });
+
+/* ---------------------------------------------------------------------------
+ * Resumes
+ * ------------------------------------------------------------------------- */
+
+/** Same ceiling as a stored listing. A resume longer than this is not a resume. */
+const MAX_RESUME_TEXT = 40_000;
+
+/**
+ * The floor is not arbitrary. An empty or near-empty resume would still score every
+ * posting — badly, and silently — so it is rejected at the boundary rather than allowed
+ * to quietly make every application look like a long shot.
+ */
+export const resumeCreateSchema = z.object({
+  /** Optional; the action fills in today's date when it is blank. */
+  label: optionalText(MAX_NAME),
+  rawText: z.preprocess(
+    blankToNull,
+    z
+      .string({ error: "Paste your resume text." })
+      .min(200, "That is too short to be a resume. Paste the whole thing.")
+      .max(MAX_RESUME_TEXT, `A resume must be ${MAX_RESUME_TEXT} characters or fewer.`),
+  ),
+});
+
+export const resumeIdSchema = z.object({ id: uuid });
+
+export type ResumeCreateInput = z.output<typeof resumeCreateSchema>;
 
 /* ---------------------------------------------------------------------------
  * Companies

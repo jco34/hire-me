@@ -2,6 +2,14 @@ import { z } from "zod";
 
 import type { FormValues } from "@/components/app/preserveValues";
 import {
+  COVERAGE_VALUES,
+  IMPORTANCE_VALUES,
+  MAX_REQUIREMENTS,
+  REQUIREMENT_KINDS,
+  judgementSchema,
+  type MatchBreakdown,
+} from "@/lib/domain/match";
+import {
   employmentTypeSchema,
   salaryPeriodSchema,
   workSetupSchema,
@@ -61,9 +69,53 @@ export const ingestExtractionSchema = z.object({
   salaryPeriod: salaryPeriodSchema.nullish().catch(null),
   salaryRaw: nullableString,
   salaryNotDisclosed: z.boolean().nullish().catch(null),
+
+  /**
+   * The posting as plain text, asked for only when the listing arrived as screenshots.
+   * When you paste text we already have it and the model is told to return null rather
+   * than echo thousands of characters back at us.
+   *
+   * This is what makes a screenshot-only application re-scoreable later, which is the
+   * whole reason it is worth the output tokens.
+   */
+  listingText: z.string().nullish(),
+
+  /**
+   * The match judgement. Absent when no resume is loaded, since the model is then never
+   * asked for it. `catch` keeps a malformed judgement from failing the extraction: the
+   * fields still fill, the score is simply missing, and the user is no worse off than
+   * before this feature existed.
+   */
+  judgement: judgementSchema.nullish().catch(null),
 });
 
 export type ExtractionResult = z.output<typeof ingestExtractionSchema>;
+
+/**
+ * Which model actually read the listing.
+ *
+ * Gemini is the primary; Claude is a local fallback for when it is overloaded. Named here
+ * rather than beside the transports so this module stays the one both the client and the
+ * server read their shapes from.
+ */
+export type ExtractorName = "gemini" | "claude";
+
+/** What a successful extraction hands back to the create form. */
+export interface IngestResult {
+  /** Values for the form below, exactly as before. */
+  values: FormValues;
+  /** The computed score, or null when there was nothing to score it against. */
+  match: MatchBreakdown | null;
+  /** The posting, kept so the application can be re-scored after a resume rewrite. */
+  listingText: string | null;
+  /** Which resume produced `match`, so the saved row can name it. Null when unscored. */
+  resumeId: string | null;
+  /**
+   * Which extractor produced this. Surfaced to the user only when it was not the primary:
+   * a fallback that fires silently is one you cannot tell apart from a slow day.
+   */
+  extractor: ExtractorName;
+}
 
 /**
  * Push a text value only when the model actually returned one, so a null never
@@ -122,3 +174,61 @@ export const INGEST_PROMPT = [
   "- salaryNotDisclosed is true only if the posting explicitly hides or omits pay.",
   "- Do not invent a company name or title; leave null if genuinely not stated.",
 ].join("\n");
+
+/** Asked for only when the listing came in as screenshots. See `listingText` above. */
+export const TRANSCRIBE_PROMPT = [
+  "",
+  "The listing was supplied as screenshots with no accompanying text.",
+  "Also set listingText to a plain-text transcription of the posting: requirements,",
+  "responsibilities and qualifications in full, headers and navigation chrome omitted.",
+].join("\n");
+
+/**
+ * The judging half of the prompt.
+ *
+ * Note what is *not* asked for: a percentage, a rating, a verdict, or any number at all
+ * beyond the years the posting itself states. The model reports coverage per requirement
+ * and nothing else; `scoreMatch` in `match.ts` owns every weight and the arithmetic. Ask a
+ * model for the number and the same posting scores 71 one minute and 78 the next.
+ */
+export function buildMatchPrompt(resumeText: string): string {
+  return [
+    "",
+    "SECOND TASK — judge how well the candidate's resume answers this posting.",
+    "",
+    "Candidate resume:",
+    "---",
+    resumeText,
+    "---",
+    "",
+    "Fill the `judgement` object:",
+    `- requirements: up to ${MAX_REQUIREMENTS} entries, one per thing the posting asks for.`,
+    "  Extract them from the POSTING, then decide whether the RESUME answers each one.",
+    "  - label: the requirement in three words or fewer, e.g. 'Kubernetes', '5+ years React'.",
+    "  - kind: " + REQUIREMENT_KINDS.join(" | ") + ". A named technology, tool, language or",
+    "    qualification is a skill. Something the person would DO in the role is a responsibility.",
+    "    A generic personal quality is soft: 'team player', 'strong communicator', 'self-starter',",
+    "    'attention to detail', 'works well under pressure', 'passionate about X'. Use soft even",
+    "    when the posting lists it as required — these are scored as nothing, so mislabelling one",
+    "    as a skill costs the candidate points no resume could ever have earned back.",
+    "  - importance: " + IMPORTANCE_VALUES.join(" | ") + ". 'must' only when the posting",
+    "    presents it as required. Anything under 'nice to have', 'a plus', 'bonus' is 'nice'.",
+    "  - coverage: " + COVERAGE_VALUES.join(" | ") + ". 'yes' when the resume clearly",
+    "    demonstrates it. 'partial' for genuinely adjacent experience — Docker against a",
+    "    Kubernetes requirement, Express against a Fastify one. 'no' when it is absent.",
+    "  - evidence: the phrase from the RESUME that justifies 'yes' or 'partial'. Null for 'no'.",
+    "- experienceFit: does the resume meet the seniority and years the posting asks for?",
+    "  'yes' if it meets or exceeds them, 'partial' if short by up to two years or one title",
+    "  step, 'no' if further off. Null if the posting states no seniority or years at all.",
+    "- logisticsFit: can the candidate take this role given where they live and the posting's",
+    "  location and work setup? Remote is 'yes'. Onsite in the candidate's own city or country",
+    "  is 'yes'. Onsite in a country they would have to relocate to is 'no'. Null if the",
+    "  posting says nothing about location or setup.",
+    "- minYears: the years of experience the posting asks for, as a number. Null if unstated.",
+    "- summary: one sentence, under 30 words, on where the candidate is strong and where they",
+    "  fall short for THIS role. Address them as 'you'. No score, no percentage, no grade.",
+    "",
+    "Be strict. A requirement the resume does not actually evidence is 'no', not 'partial'.",
+    "Judging generously produces a flattering number that costs the candidate a wasted evening.",
+  ].join("\n");
+}

@@ -7,6 +7,9 @@ import { useActionState, useEffect, useRef, useState, useTransition } from "reac
 import { IngestPanel } from "@/app/applications/IngestPanel";
 import { checkForDuplicate } from "@/lib/actions/duplicates";
 import type { DuplicateMatch } from "@/lib/domain/duplicate";
+import type { IngestResult } from "@/lib/domain/ingest";
+import type { MatchBreakdown } from "@/lib/domain/match";
+import { MatchPanel } from "@/components/app/MatchPanel";
 import {
   captureValues,
   restoreValues,
@@ -80,10 +83,20 @@ export function ApplicationForm({
   const [duplicate, setDuplicate] = useState<DuplicateMatch | null>(null);
   const [, startDuplicateCheck] = useTransition();
 
-  const handleExtracted = (values: FormValues) => {
+  /* The score and the posting it came from. Held in state rather than written straight to
+     the database: extraction fills the form, it does not save it, and that stays true of
+     the score. They ride to the server in hidden inputs when the user presses save. */
+  const [match, setMatch] = useState<MatchBreakdown | null>(null);
+  const [listingText, setListingText] = useState<string>("");
+  const [matchResumeId, setMatchResumeId] = useState<string>("");
+
+  const handleExtracted = (result: IngestResult) => {
     const form = formRef.current;
-    restoreValues(form, values);
+    restoreValues(form, result.values);
     setDuplicate(null);
+    setMatch(result.match);
+    setListingText(result.listingText ?? "");
+    setMatchResumeId(result.resumeId ?? "");
     if (!form) return;
 
     // Read the form's current values (not just the freshly extracted ones), so a
@@ -138,6 +151,23 @@ export function ApplicationForm({
         <div className="mb-s5">
           <IngestPanel onExtracted={handleExtracted} />
         </div>
+      ) : null}
+
+      {match ? (
+        <>
+          <MatchPanel breakdown={match} className="mb-s3" />
+          {/* Carried to the server on save. The score is read back off the breakdown so
+              the number and its evidence cannot disagree; see `matchFields` in
+              validation.ts. */}
+          <input type="hidden" name="matchBreakdown" value={JSON.stringify(match)} />
+          <input type="hidden" name="matchResumeId" value={matchResumeId} />
+        </>
+      ) : null}
+
+      {/* Kept even when the judgement failed: a stored posting is what makes a later
+          re-score possible at all. */}
+      {listingText ? (
+        <input type="hidden" name="listingText" value={listingText} />
       ) : null}
 
       {duplicate ? (

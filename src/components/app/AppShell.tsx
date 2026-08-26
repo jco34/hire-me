@@ -16,6 +16,7 @@ import { cn } from "@/lib/cn";
 const NAV = [
   { href: "/applications", label: "applications" },
   { href: "/companies", label: "companies" },
+  { href: "/profile", label: "profile" },
 ] as const;
 
 export function AppShell({
@@ -23,7 +24,7 @@ export function AppShell({
   active,
 }: {
   children: ReactNode;
-  active: "applications" | "companies";
+  active: (typeof NAV)[number]["label"];
 }) {
   return (
     <div className="flex min-h-svh flex-col">

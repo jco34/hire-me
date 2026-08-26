@@ -11,15 +11,21 @@ import {
   StageForm,
 } from "@/app/applications/[id]/DetailForms";
 import { Timeline } from "@/app/applications/[id]/Timeline";
+import { ActionForm } from "@/components/app/ActionForm";
 import { AppShell } from "@/components/app/AppShell";
+import { MatchPanel } from "@/components/app/MatchPanel";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { CapsuleLink } from "@/components/ui/Capsule";
 import { EMPLOYMENT_TYPE_LABELS, MetaGrid, MetaItem, WORK_SETUP_LABELS } from "@/components/ui/Meta";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StageStrip } from "@/components/ui/StageStrip";
+import { rescoreApplication } from "@/lib/actions/rescore";
 import { cn } from "@/lib/cn";
+import type { Application } from "@/lib/db/schema";
+import { parseBreakdown } from "@/lib/domain/match";
 import { formatSalary } from "@/lib/domain/salary";
 import { getApplication } from "@/lib/queries/applications";
+import { activeResume } from "@/lib/queries/resumes";
 
 /**
  * The detail panel.
@@ -129,6 +135,11 @@ export default async function ApplicationDetailPage({
           </section>
 
           <section className="flex flex-col gap-s2">
+            <h2 className="t-micro">match</h2>
+            <MatchSection application={application} />
+          </section>
+
+          <section className="flex flex-col gap-s2">
             <h2 className="t-micro">history</h2>
             <Timeline events={events} notes={notes} />
           </section>
@@ -175,5 +186,61 @@ export default async function ApplicationDetailPage({
         </aside>
       </div>
     </AppShell>
+  );
+}
+
+/**
+ * The match score, its evidence, and the button that recomputes it.
+ *
+ * Three distinct states, and conflating any two of them would be a lie:
+ *
+ *   scored          the breakdown, plus a stale notice if the resume has moved on since
+ *   scoreable       no score yet, but the posting was kept, so it can be scored now
+ *   not scoreable   saved before postings were kept — nothing to score against, and no
+ *                   button, because offering one that cannot work is worse than silence
+ */
+async function MatchSection({ application }: { application: Application }) {
+  const breakdown = parseBreakdown(application.matchBreakdown);
+  const resume = await activeResume();
+
+  // Stale means the score describes a resume you have since replaced, not that it is old.
+  // Time alone changes nothing here: the same posting and the same resume score the same.
+  const stale =
+    breakdown !== null &&
+    resume !== null &&
+    application.matchResumeId !== null &&
+    application.matchResumeId !== resume.id;
+
+  if (!application.listingText && !breakdown) {
+    return (
+      <p className="t-body text-ink-soft">
+        Saved without its posting, so there is nothing to score against. Applications added
+        by pasting a listing are scored automatically.
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-s2">
+      {breakdown ? (
+        <MatchPanel breakdown={breakdown} />
+      ) : (
+        <p className="t-body text-ink-soft">
+          Not scored yet. The posting is stored, so it can be scored now.
+        </p>
+      )}
+
+      {stale ? (
+        <p className="t-body border-l-2 border-ink pl-s2 text-ink">
+          Scored against an earlier resume. Score it again to see where it lands now.
+        </p>
+      ) : null}
+
+      {application.listingText ? (
+        <ActionForm action={rescoreApplication} submitLabel="score again" variant="flat">
+          <input type="hidden" name="id" value={application.id} />
+        </ActionForm>
+      ) : null}
+    </div>
   );
 }

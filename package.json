@@ -12,6 +12,7 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx --conditions=react-server -r dotenv/config src/lib/db/seed.ts dotenv_config_path=.env.local",
+    "resume:import": "tsx --conditions=react-server -r dotenv/config src/lib/db/import-resume.ts dotenv_config_path=.env.local",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

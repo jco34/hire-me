@@ -31,6 +31,7 @@ const COLUMNS: { key: ApplicationSortKey | null; label: string; className?: stri
   { key: "company", label: "company" },
   { key: "title", label: "title" },
   { key: "stage", label: "stage" },
+  { key: "match", label: "match" },
   { key: "salary", label: "salary" },
   { key: null, label: "setup", className: "hidden lg:table-cell" },
   { key: null, label: "location", className: "hidden xl:table-cell" },
@@ -58,6 +59,7 @@ export default async function ApplicationsPage({
     workSetup: first(params.workSetup),
     search: first(params.search),
     staleOnly: first(params.staleOnly),
+    minMatch: first(params.minMatch),
     sort,
     direction,
   };
@@ -85,6 +87,7 @@ export default async function ApplicationsPage({
             workSetup: filters.workSetup,
             search: filters.search,
             staleOnly: filters.staleOnly === "on",
+            minMatch: filters.minMatch,
           }}
         />
 
@@ -119,7 +122,8 @@ function hasAnyFilter(filters: Record<string, string>): boolean {
       filters.employmentType ||
       filters.workSetup ||
       filters.search ||
-      filters.staleOnly,
+      filters.staleOnly ||
+      filters.minMatch,
   );
 }
 

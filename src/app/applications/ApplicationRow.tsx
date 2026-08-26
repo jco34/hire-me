@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { MouseEvent } from "react";
 
+import { MatchStrip, NoMatch } from "@/components/ui/MatchStrip";
 import { EMPLOYMENT_TYPE_LABELS, WORK_SETUP_LABELS } from "@/components/ui/Meta";
 import { StageStrip } from "@/components/ui/StageStrip";
 import { cn } from "@/lib/cn";
@@ -47,6 +48,13 @@ export function ApplicationRow({ row }: { row: ApplicationListRow }) {
       <td className="t-body px-s1 py-s2 align-top text-ink">{application.title}</td>
       <td className="px-s1 py-s2 align-top">
         <StageStrip stage={application.stage} outcome={application.outcome} size="sm" />
+      </td>
+      <td className="px-s1 py-s2 align-top whitespace-nowrap">
+        {application.matchScore === null ? (
+          <NoMatch />
+        ) : (
+          <MatchStrip score={application.matchScore} size="sm" />
+        )}
       </td>
       <td className="t-body px-s1 py-s2 align-top whitespace-nowrap text-ink">
         {formatSalary(application)}

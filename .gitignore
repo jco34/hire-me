@@ -34,9 +34,16 @@ yarn-error.log*
 .env*
 !.env.example
 
+# personal documents (resume source + extracted text). Never committed: real name,
+# address, phone and email. The DB copy is what the app reads at runtime.
+/private/
+
 # browser-automation output from local verification runs
 .playwright-mcp/
 /*.png
+
+# lavish review artifacts (HTML review surfaces, not source)
+/.lavish/
 
 # vercel
 .vercel

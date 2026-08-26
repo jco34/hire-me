@@ -158,6 +158,13 @@ export async function createApplication(
         salaryPeriod: input.salaryPeriod,
         salaryRaw: input.salaryRaw,
         salaryNotDisclosed: input.salaryNotDisclosed,
+        listingText: input.listingText,
+        // Read off the breakdown rather than from a field of its own, so the number on the
+        // row and the number in the evidence can never disagree.
+        matchScore: input.matchBreakdown?.score ?? null,
+        matchBreakdown: input.matchBreakdown,
+        matchResumeId: input.matchBreakdown ? input.matchResumeId : null,
+        matchScoredAt: input.matchBreakdown ? now : null,
         stage: input.stage,
         outcome: input.outcome,
         appliedAt,

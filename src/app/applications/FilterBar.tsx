@@ -40,6 +40,7 @@ export function FilterBar({
     workSetup: string;
     search: string;
     staleOnly: boolean;
+    minMatch: string;
   };
 }) {
   const router = useRouter();
@@ -70,7 +71,8 @@ export function FilterBar({
     current.employmentType ||
     current.workSetup ||
     current.search ||
-    current.staleOnly;
+    current.staleOnly ||
+    current.minMatch;
 
   return (
     <div
@@ -119,6 +121,22 @@ export function FilterBar({
         labels={WORK_SETUP_LABELS}
         onChange={(value) => setParam("workSetup", value)}
       />
+
+      {/* Bands rather than a free number: the score is a triage signal, and pretending
+          the difference between 67 and 68 is meaningful would oversell its precision. */}
+      <label className="flex items-center gap-s1">
+        <span className="sr-only">Minimum match score</span>
+        <select
+          value={current.minMatch}
+          onChange={(event) => setParam("minMatch", event.target.value || null)}
+          className={cn(CONTROL, "appearance-none pr-s3")}
+        >
+          <option value="">match: any</option>
+          <option value="85">match: 85+</option>
+          <option value="70">match: 70+</option>
+          <option value="50">match: 50+</option>
+        </select>
+      </label>
 
       <label className="flex min-h-11 cursor-pointer items-center gap-s1">
         <input

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, ilike, inArray, not, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, gte, ilike, inArray, not, or, sql, type SQL } from "drizzle-orm";
 
 import { currentUser, currentUserId } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -99,6 +99,10 @@ function buildFilterConditions(userId: string, filters: ApplicationFilters, thre
     );
   }
 
+  if (filters.minMatch !== null) {
+    conditions.push(gte(applications.matchScore, filters.minMatch));
+  }
+
   if (filters.staleOnly) {
     conditions.push(staleCondition(thresholdDays));
   }
@@ -128,6 +132,11 @@ function buildOrderBy(sort: ApplicationSortKey, direction: SortDirection): SQL[]
         sql`${applications.salaryPeriod} asc nulls last`,
         sql`coalesce(${applications.salaryMax}, ${applications.salaryMin}) ${dir} nulls last`,
       ];
+    case "match":
+      // `nulls last` in both directions, deliberately. An unscored application is not a
+      // bad match, it is an unknown one, so it never sorts above a real score and never
+      // occupies the top of the ascending list either.
+      return [sql`${applications.matchScore} ${dir} nulls last`];
     case "appliedAt":
       return [sql`${applications.appliedAt} ${dir} nulls last`];
     case "createdAt":
